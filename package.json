@@ -1,0 +1,31 @@
+{
+  "name": "scraperis-mcp",
+  "version": "0.1.0",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bin": {
+    "scraperis-mcp": "./build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && shx chmod +x build/index.js",
+    "watch": "npx tsc --watch",
+    "dev": "npx @modelcontextprotocol/inspector node build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "description": "Scraper.is MCP",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "dotenv": "^16.4.7",
+    "nanoid": "^5.1.2",
+    "shx": "^0.3.4",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}
