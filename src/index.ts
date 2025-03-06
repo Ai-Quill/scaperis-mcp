@@ -22,13 +22,11 @@ const validateENV = (key: string) => {
     process.exit(1);
   }
 }
-const isProduction = process.env.NODE_ENV === 'production';
-const SCRAPER_API_BASE = isProduction ? "https://scraper.is/api" : "http://localhost:3001/api";
+const SCRAPER_API_BASE = "https://scraper.is/api";
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
-// const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
-// validateENV('SCRAPER_API_KEY');
-const SCRAPER_API_KEY = 'ws-1e9293a39a36390d';
+const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
+validateENV('SCRAPER_API_KEY');
 
 
 const ScraperOperationSchema = z.object({
@@ -98,11 +96,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     const { name, arguments: args } = request.params;
     // Log incoming request with timestamp
-    serverSendLoggingMessage('info',`Received request for tool: ${name}`);    
+    serverSendLoggingMessage('info',`Received request for tool: ${name}`);
+    const progressToken = request.params._meta?.progressToken;    
     let handlerData;
     if (name === "scrape") {
       const { prompt, format } = args as { prompt: string, format: string };
-      handlerData = await scrapeWithPrompt(prompt, format);
+      handlerData = await scrapeWithPrompt(prompt, format, progressToken);
     } else if (name === "screenshot") {
       const { url } = args as { url: string };
       handlerData = await screenshotWithURL(url);
@@ -134,7 +133,7 @@ const screenshotWithURL = async (url: string) => {
   });
 }
 
-const scrapeWithPrompt = async (prompt: string, format: string) => {
+const scrapeWithPrompt = async (prompt: string, format: string, progressToken: string | number | undefined ) => {
   const chat_id = nanoid();
 
   const response = await fetch(`${SCRAPER_API_BASE}/extract_prompt`, {
@@ -144,13 +143,10 @@ const scrapeWithPrompt = async (prompt: string, format: string) => {
       'Content-Type': 'application/json',        
       'x-api-key': SCRAPER_API_KEY || ''
     },
-    credentials: 'include',
-    mode: 'no-cors',
     redirect: 'follow'
   });
   const data = await response.json();
-  serverSendLoggingMessage('info',`Extracted prompt: ${JSON.stringify(data)}`);
-  const progressToken = request.params._meta?.progressToken;
+  serverSendLoggingMessage('info',`Extracted prompt: ${JSON.stringify(data)}`);  
   let scraperData: any = {};
   let fetchCount = 0;
   if(data.job_id){
@@ -201,6 +197,7 @@ const scrapeWithPrompt = async (prompt: string, format: string) => {
       );
     }
   }
+  return scraperData;
 }
 
 function serverSendLoggingMessage(level: 'error' | 'info', message: string) {

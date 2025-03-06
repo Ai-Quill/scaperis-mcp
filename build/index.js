@@ -13,15 +13,16 @@ const validateENV = (key) => {
         process.exit(1);
     }
 };
-const isProduction = process.env.NODE_ENV === 'production';
-const SCRAPER_API_BASE = isProduction ? "https://scraper.is/api" : "http://localhost:3001/api";
+const SCRAPER_API_BASE = "https://scraper.is/api";
 const ToolInputSchema = ToolSchema.shape.inputSchema;
-// const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
-// validateENV('SCRAPER_API_KEY');
-const SCRAPER_API_KEY = 'ws-1e9293a39a36390d';
+const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
+validateENV('SCRAPER_API_KEY');
 const ScraperOperationSchema = z.object({
     prompt: z.string(),
     format: z.enum(["markdown", "html", "screenshot", "json"]),
+});
+const ScreenshotOperationSchema = z.object({
+    url: z.string(),
 });
 const SCRAPER_TOOL = {
     description: 'Scrape a single webpage with advanced options for content extraction. \n' +
@@ -33,8 +34,15 @@ const SCRAPER_TOOL = {
     type: "function",
     inputSchema: zodToJsonSchema(ScraperOperationSchema),
 };
+const SCREENSHOT_TOOL = {
+    description: 'Take a screenshot of a webpage',
+    name: "screenshot",
+    type: "function",
+    inputSchema: zodToJsonSchema(ScreenshotOperationSchema),
+};
 const TOOLS = [
-    SCRAPER_TOOL
+    SCRAPER_TOOL,
+    SCREENSHOT_TOOL
 ];
 // Define result type for tool operations
 // type ToolResult = {
@@ -62,78 +70,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const startTime = Date.now();
     try {
         const { name, arguments: args } = request.params;
-        const { prompt, format } = args;
-        const chat_id = nanoid();
         // Log incoming request with timestamp
         serverSendLoggingMessage('info', `Received request for tool: ${name}`);
-        const response = await fetch(`${SCRAPER_API_BASE}/extract_prompt`, {
-            method: 'POST',
-            body: JSON.stringify({ prompt, format, chat_id }),
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': SCRAPER_API_KEY || ''
-            },
-            credentials: 'include',
-            mode: 'no-cors',
-            redirect: 'follow'
-        });
-        const data = await response.json();
-        serverSendLoggingMessage('info', `Extracted prompt: ${JSON.stringify(data)}`);
         const progressToken = request.params._meta?.progressToken;
-        let scraperData = {};
-        let fetchCount = 0;
-        if (data.job_id) {
-            while (true) {
-                fetchCount++;
-                if (progressToken !== undefined) {
-                    serverSendLoggingMessage('info', `Sending progress notification for job: ${data.job_id}`);
-                    await server.notification({
-                        method: "notifications/progress",
-                        params: {
-                            "progress": fetchCount,
-                            "total": 100,
-                            progressToken: data.job_id
-                        },
-                    });
-                }
-                const scraper_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=json`;
-                const scraper_response = await fetch(scraper_url, {
-                    method: 'GET',
-                    headers: {
-                        'x-api-key': SCRAPER_API_KEY || ''
-                    }
-                });
-                scraperData = await scraper_response.json();
-                serverSendLoggingMessage('info', `Response Scraper data: ${JSON.stringify(scraperData)}`);
-                const scraper_status = scraperData.status || null;
-                const isTerminalStatus = ["completed", "failed"].includes(scraper_status);
-                serverSendLoggingMessage('info', `isTerminalStatus: ${isTerminalStatus}`);
-                if (scraper_status && isTerminalStatus) {
-                    if (scraperData.error) {
-                        serverSendLoggingMessage('error', `Scraper error: ${scraperData.error} scraper status: ${scraper_status}`);
-                        break;
-                    }
-                }
-                else if (!scraper_status && scraperData && typeof scraperData === 'object') {
-                    serverSendLoggingMessage('info', `Got Data: ${JSON.stringify(scraperData)}`);
-                    await server.notification({
-                        method: "notifications/progress",
-                        params: {
-                            "progress": 100,
-                            "total": 100,
-                            progressToken: data.job_id
-                        },
-                    });
-                    break;
-                }
-                await new Promise((resolve) => setTimeout(resolve, 5000));
-            }
+        let handlerData;
+        if (name === "scrape") {
+            const { prompt, format } = args;
+            handlerData = await scrapeWithPrompt(prompt, format, progressToken);
+        }
+        else if (name === "screenshot") {
+            const { url } = args;
+            handlerData = await screenshotWithURL(url);
         }
         return {
             content: [
                 {
                     type: "text",
-                    text: JSON.stringify(scraperData),
+                    text: JSON.stringify(handlerData),
                 },
             ],
             isError: false
@@ -147,6 +100,77 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
     }
 });
+const screenshotWithURL = async (url) => {
+    const chat_id = nanoid();
+    const response = await fetch(`${SCRAPER_API_BASE}/screenshot`, {
+        method: 'POST',
+        body: JSON.stringify({ url, chat_id }),
+    });
+};
+const scrapeWithPrompt = async (prompt, format, progressToken) => {
+    const chat_id = nanoid();
+    const response = await fetch(`${SCRAPER_API_BASE}/extract_prompt`, {
+        method: 'POST',
+        body: JSON.stringify({ prompt, format, chat_id }),
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': SCRAPER_API_KEY || ''
+        },
+        redirect: 'follow'
+    });
+    const data = await response.json();
+    serverSendLoggingMessage('info', `Extracted prompt: ${JSON.stringify(data)}`);
+    let scraperData = {};
+    let fetchCount = 0;
+    if (data.job_id) {
+        while (true) {
+            fetchCount++;
+            if (progressToken !== undefined) {
+                serverSendLoggingMessage('info', `Sending progress notification for job: ${data.job_id}`);
+                await server.notification({
+                    method: "notifications/progress",
+                    params: {
+                        "progress": fetchCount,
+                        "total": 100,
+                        progressToken: data.job_id
+                    },
+                });
+            }
+            const scraper_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=json`;
+            const scraper_response = await fetch(scraper_url, {
+                method: 'GET',
+                headers: {
+                    'x-api-key': SCRAPER_API_KEY || ''
+                }
+            });
+            scraperData = await scraper_response.json();
+            serverSendLoggingMessage('info', `Response Scraper data: ${JSON.stringify(scraperData)}`);
+            const scraper_status = scraperData.status || null;
+            const isTerminalStatus = ["completed", "failed"].includes(scraper_status);
+            serverSendLoggingMessage('info', `isTerminalStatus: ${isTerminalStatus}`);
+            if (scraper_status && isTerminalStatus) {
+                if (scraperData.error) {
+                    serverSendLoggingMessage('error', `Scraper error: ${scraperData.error} scraper status: ${scraper_status}`);
+                    break;
+                }
+            }
+            else if (!scraper_status && scraperData && typeof scraperData === 'object') {
+                serverSendLoggingMessage('info', `Got Data: ${JSON.stringify(scraperData)}`);
+                await server.notification({
+                    method: "notifications/progress",
+                    params: {
+                        "progress": 100,
+                        "total": 100,
+                        progressToken: data.job_id
+                    },
+                });
+                break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+    }
+    return scraperData;
+};
 function serverSendLoggingMessage(level, message) {
     console.error(`[${new Date().toISOString()}] level: ${level} \n message: ${message}`);
     server.sendLoggingMessage({
