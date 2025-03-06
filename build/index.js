@@ -15,8 +15,8 @@ const validateENV = (key) => {
 };
 const SCRAPER_API_BASE = "https://scraper.is/api";
 const ToolInputSchema = ToolSchema.shape.inputSchema;
-const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
-validateENV('SCRAPER_API_KEY');
+const SCRAPER_API_KEY = process.env.SCRAPERIS_API_KEY;
+validateENV('SCRAPERIS_API_KEY');
 const ScraperOperationSchema = z.object({
     prompt: z.string(),
     format: z.enum(["markdown", "html", "screenshot", "json"]),
