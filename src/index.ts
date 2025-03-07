@@ -30,7 +30,7 @@ validateENV('SCRAPERIS_API_KEY');
 
 const ScraperOperationSchema = z.object({
     prompt: z.string(),
-    format: z.enum(["markdown", "html", "screenshot", "json"]),
+    format: z.enum(["markdown", "html", "screenshot", "json", "quick"]),
 });
 
 const ScreenshotOperationSchema = z.object({
@@ -40,7 +40,7 @@ const ScreenshotOperationSchema = z.object({
 const SCRAPER_TOOL: Tool = {
     description:
     'Scrape a single webpage with advanced options for content extraction. \n' +
-    'Supports various formats including markdown, HTML, screenshots and JSON \n' +
+    'Supports various formats including markdown, HTML, screenshots, JSON, and quick (combined markdown + screenshot) \n' +
     "The prompt should include the website URL and what data you want to extract. \n" +
     "For example: 'Get me the top 10 products from producthunt.com' or \n" +
     "'Extract all article titles and authors from techcrunch.com/news'",
@@ -101,11 +101,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (name === "scrape") {
       const { prompt, format } = args as { prompt: string, format: string };
       handlerData = await scrapeWithPrompt(prompt, format, progressToken);
+      
+      // Format the response based on what we received
+      if (handlerData.markdown && handlerData.screenshot) {
+        // We have both markdown and screenshot from the quick format
+        return {
+          content: [
+            {
+              type: "text",
+              text: handlerData.markdown,
+            },
+            {
+              type: "image",
+              url: handlerData.screenshot.url,
+            }
+          ],
+          isError: false
+        };
+      }
     } else if (name === "screenshot") {
       const { url } = args as { url: string };
       handlerData = await screenshotWithURL(url);
     }
 
+    // Default response format (for backward compatibility)
     return {
       content: [
         {
@@ -162,7 +181,7 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
           },
         });
       }
-      const scraper_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=json`;
+      const scraper_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=quick`;
       const scraper_response = await fetch(scraper_url, {
         method: 'GET',
         headers: {
@@ -171,14 +190,31 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
       });
       scraperData = await scraper_response.json();
       serverSendLoggingMessage('info',`Response Scraper data: ${JSON.stringify(scraperData)}`);
+      
       const scraper_status = scraperData.status || null;
       const isTerminalStatus = ["completed", "failed"].includes(scraper_status);
       serverSendLoggingMessage('info',`isTerminalStatus: ${isTerminalStatus}`);
+      
       if (scraper_status && isTerminalStatus) {
         if (scraperData.error) {
           serverSendLoggingMessage('error', `Scraper error: ${scraperData.error} scraper status: ${scraper_status}`);
           break;
         }
+        
+        if (format === 'json') {
+          const json_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=json`;
+          const json_response = await fetch(json_url, {
+            method: 'GET',
+            headers: {
+              'x-api-key': SCRAPER_API_KEY || ''
+            }
+          });
+          const jsonData = await json_response.json();
+          
+          scraperData.data = jsonData;
+        }
+        
+        break;
       } else if (!scraper_status && scraperData && typeof scraperData === 'object') {
         serverSendLoggingMessage('info',`Got Data: ${JSON.stringify(scraperData)}`);
         await server.notification({
