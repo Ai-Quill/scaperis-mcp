@@ -40,7 +40,8 @@ const ScreenshotOperationSchema = z.object({
 const SCRAPER_TOOL: Tool = {
     description:
     'Scrape a single webpage with advanced options for content extraction. \n' +
-    'Supports various formats including markdown, HTML, screenshots, JSON, and quick (combined markdown + screenshot) \n' +
+    'Always returns both markdown content and visual screenshot for rich context. \n' +
+    'Supports various formats including markdown, HTML, screenshots, JSON, and quick. \n' +
     "The prompt should include the website URL and what data you want to extract. \n" +
     "For example: 'Get me the top 10 products from producthunt.com' or \n" +
     "'Extract all article titles and authors from techcrunch.com/news'",
@@ -102,20 +103,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { prompt, format } = args as { prompt: string, format: string };
       handlerData = await scrapeWithPrompt(prompt, format, progressToken);
       
-      // Format the response based on what we received
-      if (handlerData.markdown && handlerData.screenshot) {
-        // We have both markdown and screenshot from the quick format
+      // Check if we're still in processing state
+      if (handlerData.processing === true) {
         return {
           content: [
             {
               type: "text",
-              text: handlerData.markdown,
-            },
-            {
-              type: "image",
-              url: handlerData.screenshot.url,
+              text: `Still processing your request. Current status: ${handlerData.status || "running"}. Please wait a moment and try again.`,
             }
           ],
+          isError: false
+        };
+      }
+      
+      // Always check for markdown and screenshot from the quick format
+      if (handlerData.markdown || handlerData.screenshot) {
+        // Prepare content array with available data
+        const content = [];
+        
+        // Add markdown if available
+        if (handlerData.markdown) {
+          content.push({
+            type: "text",
+            text: handlerData.markdown,
+          });
+        }
+        
+        // Add screenshot if available
+        if (handlerData.screenshot && handlerData.screenshot.url) {
+          content.push({
+            type: "image",
+            url: handlerData.screenshot.url,
+          });
+        }
+        
+        // Add JSON data as text if specifically requested and available
+        if (format === 'json' && handlerData.data) {
+          content.push({
+            type: "text",
+            text: "JSON Data:\n```json\n" + JSON.stringify(handlerData.data, null, 2) + "\n```",
+          });
+        }
+        
+        // Return the combined content
+        return {
+          content: content,
           isError: false
         };
       }
@@ -154,9 +186,13 @@ const screenshotWithURL = async (url: string) => {
 const scrapeWithPrompt = async (prompt: string, format: string, progressToken: string | number | undefined ) => {
   const chat_id = nanoid();
 
+  // Store the original format requested by the user
+  const originalFormat = format;
+  
+  // Always use "quick" format for the initial API call to get both markdown and screenshot
   const response = await fetch(`${SCRAPER_API_BASE}/extract_prompt`, {
     method: 'POST',
-    body: JSON.stringify({ prompt, format, chat_id }),
+    body: JSON.stringify({ prompt, format: "quick", chat_id }),
     headers: {
       'Content-Type': 'application/json',        
       'x-api-key': SCRAPER_API_KEY || ''
@@ -181,6 +217,7 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
           },
         });
       }
+      // Always use the "quick" format to get both markdown and screenshot
       const scraper_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=quick`;
       const scraper_response = await fetch(scraper_url, {
         method: 'GET',
@@ -191,6 +228,15 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
       scraperData = await scraper_response.json();
       serverSendLoggingMessage('info',`Response Scraper data: ${JSON.stringify(scraperData)}`);
       
+      // Check if the response indicates processing is still happening
+      if (scraperData.processing === true) {
+        serverSendLoggingMessage('info', `Data is still processing. Status: ${scraperData.status}`);
+        // Continue polling
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        continue;
+      }
+      
+      // Check status from the quick format response
       const scraper_status = scraperData.status || null;
       const isTerminalStatus = ["completed", "failed"].includes(scraper_status);
       serverSendLoggingMessage('info',`isTerminalStatus: ${isTerminalStatus}`);
@@ -201,7 +247,15 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
           break;
         }
         
-        if (format === 'json') {
+        // Check if we have actual data (not just processing status)
+        if (!scraperData.markdown && !scraperData.screenshot) {
+          serverSendLoggingMessage('info', `Status is terminal but no data yet. Continuing to poll.`);
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+          continue;
+        }
+        
+        // If the user specifically requested JSON format, fetch it separately
+        if (originalFormat === 'json') {
           const json_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=json`;
           const json_response = await fetch(json_url, {
             method: 'GET',
@@ -211,21 +265,27 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
           });
           const jsonData = await json_response.json();
           
+          // Add the JSON data to our response
           scraperData.data = jsonData;
         }
         
         break;
       } else if (!scraper_status && scraperData && typeof scraperData === 'object') {
-        serverSendLoggingMessage('info',`Got Data: ${JSON.stringify(scraperData)}`);
-        await server.notification({
-          method: "notifications/progress",
-          params: {
-            "progress": 100,
-            "total": 100,
-            progressToken: data.job_id
-          },
-        });
-        break;
+        // Check if we have actual data (not just processing status)
+        if (scraperData.markdown || scraperData.screenshot) {
+          serverSendLoggingMessage('info',`Got Data: ${JSON.stringify(scraperData)}`);
+          await server.notification({
+            method: "notifications/progress",
+            params: {
+              "progress": 100,
+              "total": 100,
+              progressToken: data.job_id
+            },
+          });
+          break;
+        } else {
+          serverSendLoggingMessage('info', `No data yet. Continuing to poll.`);
+        }
       }
       await new Promise((resolve) =>
         setTimeout(resolve, 5000),
