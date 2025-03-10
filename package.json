@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
+    "open": "^10.1.0",
     "typescript": "^5.8.2"
   }
 }

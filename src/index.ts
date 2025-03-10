@@ -8,9 +8,11 @@ import {
   Tool,
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  ToolSchema
+  ToolSchema,
+  ReadResourceRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { nanoid } from 'nanoid';
+import open from "open";
 
 import dotenv from 'dotenv';
 
@@ -22,7 +24,7 @@ const validateENV = (key: string) => {
     process.exit(1);
   }
 }
-const SCRAPER_API_BASE = "https://scraper.is/api";
+const SCRAPER_API_BASE = "http://localhost:3000/api";
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
 const SCRAPER_API_KEY = process.env.SCRAPERIS_API_KEY;
@@ -36,6 +38,8 @@ const ScraperOperationSchema = z.object({
 const ScreenshotOperationSchema = z.object({
   url: z.string(),
 });
+
+const screenshots = new Map<string, string>();
 
 const SCRAPER_TOOL: Tool = {
     description:
@@ -60,8 +64,10 @@ const SCREENSHOT_TOOL: Tool = {
 
 const TOOLS = [
   SCRAPER_TOOL,
-  SCREENSHOT_TOOL
+  // SCREENSHOT_TOOL
 ]
+
+
 
 // Define result type for tool operations
 // type ToolResult = {
@@ -88,8 +94,29 @@ const server: Server = new Server(
 
 // Register handler for tool listing requests
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: TOOLS
+  tools: TOOLS,
 }));
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  serverSendLoggingMessage('info',`ReadResourceRequestSchema: ${JSON.stringify(request.params)}`);
+  const screenshotURL = request.params.uri.replace("scraperis_screenshot://", "");
+  serverSendLoggingMessage('info',`screenshotURL: ${screenshotURL}`);  
+  if (screenshotURL) {
+    const imageBuffer = await fetch(screenshotURL);
+    const base64Image = await imageBuffer.arrayBuffer();
+    return {
+      content: [
+        { 
+          uri: screenshotURL,
+          mimeType: "image/png",
+          blob: base64Image
+        }
+      ],
+    };
+  }
+
+  throw new Error("Resource not found");  
+});
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const startTime = Date.now();
@@ -103,38 +130,79 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { prompt, format } = args as { prompt: string, format: string };
       handlerData = await scrapeWithPrompt(prompt, format, progressToken);
       
-      // Check if we're still in processing state
-      if (handlerData.processing === true) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Still processing your request. Current status: ${handlerData.status || "running"}. Please wait a moment and try again.`,
-            }
-          ],
-          isError: false
-        };
-      }
-      
+      // serverSendLoggingMessage('info',`Handler data: ${JSON.stringify(handlerData)}`);
       // Always check for markdown and screenshot from the quick format
       if (handlerData.markdown || handlerData.screenshot) {
         // Prepare content array with available data
         const content = [];
         
         // Add markdown if available
-        if (handlerData.markdown) {
-          content.push({
-            type: "text",
-            text: handlerData.markdown,
-          });
+        if (handlerData.markdown && format === "markdown") {
+          // content.push({
+          //   type: "text",
+          //   text: handlerData.markdown,
+          // });
+          return {
+            content: [
+              {
+                type: "text",
+                text: handlerData.markdown,
+              }
+            ],
+            isError: false
+          }
         }
-        
+        serverSendLoggingMessage('info',` ${format} Data: ${handlerData.screenshot}`);
         // Add screenshot if available
-        if (handlerData.screenshot && handlerData.screenshot.url) {
-          content.push({
-            type: "image",
-            url: handlerData.screenshot.url,
+        if (handlerData.screenshot && handlerData.screenshot.url && format === "screenshot") {
+          // content.push({
+          //   type: "image",
+          //   url: handlerData.screenshot.url,
+          // });
+          
+          // Read the binary data and convert to base64 from url
+          serverSendLoggingMessage('info',`Screenshot URL: ${handlerData.screenshot.url}`);
+          screenshots.set(handlerData.url, handlerData.screenshot.url);
+          server.notification({
+            method: "notifications/resources/list_changed",
           });
+          const resourceUri = `scraperis_screenshot://${handlerData.screenshot.url}`;
+          open(handlerData.screenshot.url);
+          return {
+            content: [{
+                type: "text" as const,
+                text: `Screenshot taken successfully. You can view it via *MCP Resources* (Paperclip icon) @ URI: ${resourceUri}`
+            }]
+        };
+          // const imageBuffer = await fetch(handlerData.screenshot.url);
+          // const base64Image = await imageBuffer.arrayBuffer();
+          // content.push({
+          //   type: "image",
+          //   uri: handlerData.screenshot.url,
+          //   mimeType: "image/png",
+          //   name: "screenshot.png",
+          //   blob: base64Image
+          // });
+          // serverSendLoggingMessage('info',`Return BLOB: ${base64Image}`);
+          return {
+            // content: [
+            //   {
+            //     uri: `scraperis://screenshot`,
+            //     mimeType: "image/png",
+            //     blob: `data:image/png;base64,${base64Image}`
+            //   }
+            // ],
+            // content: [
+            //   {
+            //     type: "image",
+            //     name: "screenshot.png",
+            //     uri: handlerData.screenshot.url,
+            //     mimeType: "image/png",
+            //     blob: base64Image
+            //   }
+            // ],
+            isError: false            
+          }
         }
         
         // Add JSON data as text if specifically requested and available
@@ -144,16 +212,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: "JSON Data:\n```json\n" + JSON.stringify(handlerData.data, null, 2) + "\n```",
           });
         }
-        
-        // Return the combined content
         return {
           content: content,
           isError: false
-        };
+        }
       }
     } else if (name === "screenshot") {
       const { url } = args as { url: string };
       handlerData = await screenshotWithURL(url);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(handlerData),
+          },
+        ],
+      }
     }
 
     // Default response format (for backward compatibility)
@@ -192,7 +266,7 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
   // Always use "quick" format for the initial API call to get both markdown and screenshot
   const response = await fetch(`${SCRAPER_API_BASE}/extract_prompt`, {
     method: 'POST',
-    body: JSON.stringify({ prompt, format: "quick", chat_id }),
+    body: JSON.stringify({ prompt, chat_id, html_only: true }),
     headers: {
       'Content-Type': 'application/json',        
       'x-api-key': SCRAPER_API_KEY || ''
@@ -200,20 +274,20 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
     redirect: 'follow'
   });
   const data = await response.json();
-  serverSendLoggingMessage('info',`Extracted prompt: ${JSON.stringify(data)}`);  
+  // serverSendLoggingMessage('info',`Extracted prompt: ${JSON.stringify(data)}`);  
   let scraperData: any = {};
   let fetchCount = 0;
   if(data.job_id){
     while(true){
       fetchCount++;
       if (progressToken !== undefined) {
-        serverSendLoggingMessage('info',`Sending progress notification for job: ${data.job_id}`);
+        // serverSendLoggingMessage('info',`Sending progress notification for job: ${data.job_id}`);
         await server.notification({
           method: "notifications/progress",
           params: {
             "progress": fetchCount,
             "total": 100,
-            progressToken: data.job_id
+            progressToken: chat_id
           },
         });
       }
@@ -226,11 +300,11 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
         }
       });
       scraperData = await scraper_response.json();
-      serverSendLoggingMessage('info',`Response Scraper data: ${JSON.stringify(scraperData)}`);
+      // serverSendLoggingMessage('info',`Response Scraper data: ${JSON.stringify(scraperData)}`);
       
       // Check if the response indicates processing is still happening
       if (scraperData.processing === true) {
-        serverSendLoggingMessage('info', `Data is still processing. Status: ${scraperData.status}`);
+        // serverSendLoggingMessage('info', `Data is still processing. Status: ${scraperData.status}`);
         // Continue polling
         await new Promise((resolve) => setTimeout(resolve, 5000));
         continue;
@@ -244,52 +318,31 @@ const scrapeWithPrompt = async (prompt: string, format: string, progressToken: s
       if (scraper_status && isTerminalStatus) {
         if (scraperData.error) {
           serverSendLoggingMessage('error', `Scraper error: ${scraperData.error} scraper status: ${scraper_status}`);
-          break;
+          process.exit(1);
         }
         
         // Check if we have actual data (not just processing status)
         if (!scraperData.markdown && !scraperData.screenshot) {
-          serverSendLoggingMessage('info', `Status is terminal but no data yet. Continuing to poll.`);
+          // serverSendLoggingMessage('info', `Status is terminal but no data yet. Continuing to poll.`);
           await new Promise((resolve) => setTimeout(resolve, 5000));
           continue;
-        }
-        
-        // If the user specifically requested JSON format, fetch it separately
-        if (originalFormat === 'json') {
-          const json_url = `${SCRAPER_API_BASE}/get_data?chat_id=${chat_id}&format=json`;
-          const json_response = await fetch(json_url, {
-            method: 'GET',
-            headers: {
-              'x-api-key': SCRAPER_API_KEY || ''
-            }
-          });
-          const jsonData = await json_response.json();
-          
-          // Add the JSON data to our response
-          scraperData.data = jsonData;
-        }
-        
-        break;
-      } else if (!scraper_status && scraperData && typeof scraperData === 'object') {
-        // Check if we have actual data (not just processing status)
-        if (scraperData.markdown || scraperData.screenshot) {
-          serverSendLoggingMessage('info',`Got Data: ${JSON.stringify(scraperData)}`);
+        }else{
+          // serverSendLoggingMessage('info', `Got Data: ${JSON.stringify(scraperData)}`);
           await server.notification({
             method: "notifications/progress",
             params: {
               "progress": 100,
               "total": 100,
-              progressToken: data.job_id
+              progressToken: chat_id
             },
-          });
+          });          
           break;
-        } else {
-          serverSendLoggingMessage('info', `No data yet. Continuing to poll.`);
         }
-      }
-      await new Promise((resolve) =>
-        setTimeout(resolve, 5000),
-      );
+      }else{
+        await new Promise((resolve) =>
+          setTimeout(resolve, 5000),
+        );
+      }      
     }
   }
   return scraperData;
