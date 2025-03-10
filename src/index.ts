@@ -24,7 +24,7 @@ const validateENV = (key: string) => {
     process.exit(1);
   }
 }
-const SCRAPER_API_BASE = "http://localhost:3000/api";
+const SCRAPER_API_BASE = "https://scraper.is/api";
 const ToolInputSchema = ToolSchema.shape.inputSchema;
 type ToolInput = z.infer<typeof ToolInputSchema>;
 const SCRAPER_API_KEY = process.env.SCRAPERIS_API_KEY;
