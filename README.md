@@ -1,0 +1,132 @@
+# Scraper.is MCP
+
+[![npm version](https://img.shields.io/npm/v/scraperis-mcp.svg)](https://www.npmjs.com/package/scraperis-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A [Model Context Protocol (MCP)](https://github.com/model-context-protocol/spec) integration for [Scraper.is](https://scraper.is) - A powerful web scraping tool for AI assistants.
+
+This package allows AI assistants to scrape web content through the MCP protocol, enabling them to access up-to-date information from the web.
+
+## Features
+
+- 🌐 **Web Scraping**: Extract content from any website
+- 📸 **Screenshots**: Capture visual representations of web pages
+- 📄 **Multiple Formats**: Get content in markdown, HTML, or JSON
+- 🔄 **Progress Updates**: Real-time progress reporting during scraping operations
+- 🔌 **MCP Integration**: Seamless integration with MCP-compatible AI assistants
+
+## Installation
+
+```bash
+npm install -g scraperis-mcp
+```
+
+Or with yarn:
+
+```bash
+yarn global add scraperis-mcp
+```
+
+## Prerequisites
+
+You need a Scraper.is API key to use this package. You can get one by signing up at [scraper.is](https://scraper.is).
+
+## Usage
+
+### Environment Setup
+
+Create a `.env` file with your Scraper.is API key:
+
+```
+SCRAPERIS_API_KEY=your_api_key_here
+```
+
+### Running with MCP Inspector
+
+For development and testing, you can use the MCP Inspector:
+
+```bash
+npx @modelcontextprotocol/inspector scraperis-mcp
+```
+
+### Integration with AI Assistants
+
+This package is designed to be used with AI assistants that support the Model Context Protocol (MCP). When properly configured, the AI assistant can use the following tools:
+
+#### Scrape Tool
+
+The `scrape` tool allows the AI to extract content from websites. It supports various formats:
+
+- `markdown`: Returns the content in markdown format
+- `html`: Returns the content in HTML format
+- `screenshot`: Returns a screenshot of the webpage
+- `json`: Returns structured data in JSON format
+
+Example prompt for the AI:
+
+```
+Can you scrape the latest news from techcrunch.com and summarize it for me?
+```
+
+## API Reference
+
+### Tools
+
+#### scrape
+
+Scrapes content from a webpage based on a prompt.
+
+**Parameters:**
+
+- `prompt` (string): The prompt describing what to scrape, including the URL
+- `format` (string): The format to return the content in (`markdown`, `html`, `screenshot`, `json`, `quick`)
+
+**Example:**
+
+```json
+{
+  "prompt": "Get me the top 10 products from producthunt.com",
+  "format": "markdown"
+}
+```
+
+## Development
+
+### Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/scraperis/scraperis-mcp.git
+   cd scraperis-mcp
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Build the project:
+   ```bash
+   npm run build
+   ```
+
+### Scripts
+
+- `npm run build`: Build the project
+- `npm run watch`: Watch for changes and rebuild
+- `npm run dev`: Run with MCP Inspector for development
+- `npm run test`: Run tests
+- `npm run lint`: Run ESLint
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- [Model Context Protocol](https://github.com/model-context-protocol/spec)
+- [Scraper.is](https://scraper.is) 
