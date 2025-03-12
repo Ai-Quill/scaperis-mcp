@@ -29,7 +29,14 @@ yarn global add scraperis-mcp
 
 ## Prerequisites
 
-You need a Scraper.is API key to use this package. You can get one by signing up at [scraper.is](https://scraper.is).
+You need a Scraper.is API key to use this package. 
+
+### Getting Your API Key
+
+1. Sign up or log in at [scraper.is](https://scraper.is)
+2. Navigate to the API Keys section in your dashboard: [https://www.scraper.is/dashboard/apikeys](https://www.scraper.is/dashboard/apikeys)
+3. Create a new API key or copy your existing key
+4. Store this key securely as you'll need it to use this package
 
 ## Usage
 
