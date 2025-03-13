@@ -1,6 +1,6 @@
 {
   "name": "scraperis-mcp",
-  "version": "1.1.0",
+  "version": "0.1.0",
   "description": "Model Context Protocol (MCP) integration for Scraper.is - A web scraping tool for AI assistants",
   "keywords": [
     "mcp",
@@ -18,7 +18,7 @@
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
   "scripts": {
-    "build": "tsc && shx chmod +x build/index.js",
+    "build": "tsc && chmod +x build/index.js",
     "watch": "tsc --watch",
     "dev": "npx @modelcontextprotocol/inspector node build/index.js",
     "test": "vitest run",
@@ -46,7 +46,6 @@
     "@modelcontextprotocol/sdk": "^1.6.1",
     "dotenv": "^16.4.7",
     "nanoid": "^5.1.2",
-    "shx": "^0.3.4",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.22.5"
   },
@@ -61,5 +60,9 @@
   },
   "peerDependencies": {
     "open": "^10.1.0"
+  },
+  "overrides": {
+    "glob": "^10.3.10",
+    "inflight": "^2.0.1"
   }
 }
