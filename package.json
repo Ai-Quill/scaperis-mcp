@@ -1,6 +1,6 @@
 {
   "name": "scraperis-mcp",
-  "version": "0.1.1",
+  "version": "0.1.12",
   "description": "Model Context Protocol (MCP) integration for Scraper.is - A web scraping tool for AI assistants",
   "keywords": [
     "mcp",
