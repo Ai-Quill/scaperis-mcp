@@ -116,19 +116,25 @@ export class ScraperMCPServer {
       this.log('info', `screenshotURL: ${screenshotURL}`);
       
       if (screenshotURL) {
-        const imageBuffer = await fetch(screenshotURL);
-        const base64Image = await imageBuffer.arrayBuffer();
-        return {
-          content: [
-            {
-              uri: screenshotURL,
-              mimeType: 'image/png',
-              blob: base64Image
-            }
-          ],
-        };
+        try {
+          const imageBuffer = await fetch(screenshotURL);
+          const base64Image = await imageBuffer.arrayBuffer();
+          return {
+            content: [
+              {
+                uri: screenshotURL,
+                mimeType: 'image/png',
+                blob: base64Image
+              }
+            ],
+          };
+        } catch (error) {
+          this.log('error', `Error fetching screenshot: ${error instanceof Error ? error.message : String(error)}`);
+          throw new Error(`Failed to fetch screenshot: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
 
+      this.log('error', 'Resource not found: No valid screenshot URL');
       throw new Error('Resource not found');
     });
 
@@ -158,6 +164,7 @@ export class ScraperMCPServer {
           
           // Call the scraper API
           const handlerData = await this.scraperApi.scrape(prompt, format, onProgress);
+          this.log('info', `Scrape completed for prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
           
           // Handle different format responses
           if (format === 'markdown' && handlerData.markdown) {
@@ -181,7 +188,11 @@ export class ScraperMCPServer {
             });
             
             const resourceUri = `scraperis_screenshot://${handlerData.screenshot.url}`;
-            open(handlerData.screenshot.url);
+            try {
+              await open(handlerData.screenshot.url);
+            } catch (error) {
+              this.log('error', `Failed to open screenshot URL: ${error instanceof Error ? error.message : String(error)}`);
+            }
             
             return {
               content: [{
@@ -219,16 +230,22 @@ export class ScraperMCPServer {
         // Handle screenshot tool (if enabled)
         if (name === 'screenshot') {
           const { url } = args as { url: string };
-          const handlerData = await this.scraperApi.screenshot(url);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(handlerData),
-              },
-            ],
-            isError: false
-          };
+          try {
+            const handlerData = await this.scraperApi.screenshot(url);
+            this.log('info', `Screenshot taken successfully for URL: ${url}`);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(handlerData),
+                }
+              ],
+              isError: false
+            };
+          } catch (error) {
+            this.log('error', `Error taking screenshot for URL ${url}: ${error instanceof Error ? error.message : String(error)}`);
+            throw error;
+          }
         }
         
         throw new Error(`Unknown tool: ${name}`);
@@ -270,6 +287,7 @@ export class ScraperMCPServer {
       this.log('info', 'Scraperis MCP Server initialized successfully');
       this.log('info', `Configuration: API URL: ${this.scraperApi['apiBase']}`);
     } catch (error) {
+      this.log('error', `Fatal error running server: ${error instanceof Error ? error.message : String(error)}`);
       console.error('Fatal error running server:', error);
       process.exit(1);
     }
