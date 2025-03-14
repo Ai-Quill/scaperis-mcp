@@ -1,5 +1,6 @@
 # Scraper.is MCP
 
+[![smithery badge](https://smithery.ai/badge/@Ai-Quill/scaperis-mcp)](https://smithery.ai/server/@Ai-Quill/scaperis-mcp)
 [![npm version](https://img.shields.io/npm/v/scraperis-mcp.svg)](https://www.npmjs.com/package/scraperis-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -17,6 +18,15 @@ This package allows AI assistants to scrape web content through the MCP protocol
 
 ## Installation
 
+### Installing via Smithery
+
+To install scaperis-mcp for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@Ai-Quill/scaperis-mcp):
+
+```bash
+npx -y @smithery/cli install @Ai-Quill/scaperis-mcp --client claude
+```
+
+### Manual Installation
 ```bash
 npm install -g scraperis-mcp
 ```
