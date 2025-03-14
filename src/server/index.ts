@@ -9,6 +9,7 @@ import {
 
 import { ScraperAPI } from '../lib/scraper-api.js';
 import { sendLoggingMessage } from '../utils/index.js';
+import fetch from 'node-fetch';
 
 /**
  * ScraperMCPServer class for handling MCP server operations
