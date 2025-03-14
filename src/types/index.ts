@@ -15,6 +15,7 @@ export type ScraperOperation = z.infer<typeof ScraperOperationSchema>;
 export type ScreenshotOperation = z.infer<typeof ScreenshotOperationSchema>;
 
 export interface ScraperResponse {
+  job_id?: string;
   markdown?: string;
   screenshot?: {
     url: string;

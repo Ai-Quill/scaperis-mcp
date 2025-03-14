@@ -1,9 +1,14 @@
 import { generateChatId, sleep } from '../utils/index.js';
 import { ScraperResponse } from '../types/index.js';
-
+import fetch from 'node-fetch';
 /**
  * ScraperAPI client for interacting with the Scraper.is API
  */
+
+// If fetch doesn't exist in global scope, add it
+if (!globalThis.fetch) {
+  globalThis.fetch = fetch as unknown as typeof global.fetch;
+}
 export class ScraperAPI {
   private apiKey: string;
   private apiBase: string;
@@ -41,7 +46,7 @@ export class ScraperAPI {
       }
     });
     
-    return response.json();
+    return response.json() as Promise<Record<string, unknown>>;
   }
 
   /**
@@ -69,7 +74,7 @@ export class ScraperAPI {
       redirect: 'follow'
     });
     
-    const data = await response.json();
+    const data = await response.json() as ScraperResponse;
     
     // If no job ID was returned, return the data as is
     if (!data.job_id) {
@@ -97,7 +102,7 @@ export class ScraperAPI {
         }
       });
       
-      const scraperData: ScraperResponse = await scraperResponse.json();
+      const scraperData: ScraperResponse = await scraperResponse.json() as ScraperResponse;
       
       // If still processing, wait and try again
       if (scraperData.processing === true) {
