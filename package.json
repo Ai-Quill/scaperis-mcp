@@ -36,11 +36,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/scraperis/scraperis-mcp.git"
+    "url": "https://github.com/Ai-Quill/scaperis-mcp.git"
   },
   "homepage": "https://scraper.is",
   "bugs": {
-    "url": "https://github.com/scraperis/scraperis-mcp/issues"
+    "url": "https://github.com/Ai-Quill/scaperis-mcp/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",

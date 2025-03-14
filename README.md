@@ -132,7 +132,7 @@ Scrapes content from a webpage based on a prompt.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/scraperis/scraperis-mcp.git
+   git clone https://github.com/Ai-Quill/scaperis-mcp.git
    cd scraperis-mcp
    ```
 
