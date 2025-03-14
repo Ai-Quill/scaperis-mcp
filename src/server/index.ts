@@ -6,7 +6,6 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
-import open from 'open';
 
 import { ScraperAPI } from '../lib/scraper-api.js';
 import { sendLoggingMessage } from '../utils/index.js';
@@ -188,11 +187,7 @@ export class ScraperMCPServer {
             });
             
             const resourceUri = `scraperis_screenshot://${handlerData.screenshot.url}`;
-            try {
-              await open(handlerData.screenshot.url);
-            } catch (error) {
-              this.log('error', `Failed to open screenshot URL: ${error instanceof Error ? error.message : String(error)}`);
-            }
+            this.log('info', `Screenshot available at: ${handlerData.screenshot.url}`);
             
             return {
               content: [{

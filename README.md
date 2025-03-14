@@ -48,6 +48,35 @@ Create a `.env` file with your Scraper.is API key:
 SCRAPERIS_API_KEY=your_api_key_here
 ```
 
+### Claude Desktop Integration
+
+To use this package with Claude Desktop:
+
+1. Install the package globally:
+   ```bash
+   npm install -g scraperis-mcp
+   ```
+
+2. Add the following configuration to your `claude_desktop_config.json` file:
+   ```json
+   {
+     "mcpServers": {
+       "scraperis_scraper": {
+         "command": "scraperis-mcp",
+         "args": [],
+         "env": {
+           "SCRAPERIS_API_KEY": "your-api-key-here",
+           "DEBUG": "*"
+         }
+       }
+     }
+   }
+   ```
+
+3. Replace `your-api-key-here` with your actual Scraper.is API key.
+
+4. Restart Claude Desktop to apply the changes.
+
 ### Running with MCP Inspector
 
 For development and testing, you can use the MCP Inspector:
